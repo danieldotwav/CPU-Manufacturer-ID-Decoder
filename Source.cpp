@@ -6,6 +6,7 @@ using namespace std;
 
 void decodeAndPrintCpuManufacturer();
 void printDetailedHardwareInfo();
+void printAMDCacheDetails();
 void printCacheDetails(int cacheLevel, int cachType);
 
 int main(int argc, char* argv[]) {
@@ -13,8 +14,8 @@ int main(int argc, char* argv[]) {
     printDetailedHardwareInfo();
 
     // For cache size, more complex handling is required
-    // EAX=4, ECX=0 for cache information. L1 Cache type is 1 (Instruction cache).
-    printCacheDetails(1, 1);
+    printAMDCacheDetails();
+    //printCacheDetails(1, 1); // For Intel Processors
 
 	return 0;
 }
@@ -62,6 +63,20 @@ void printDetailedHardwareInfo() {
     cout << "Processor Brand String: " << brand << endl; // Print the null-terminated brand string
 }
 
+/* This version is specific for AMD processors */
+void printAMDCacheDetails() {
+    int cpuInfo[4] = { 0 };
+
+    // Get L1 cache details for AMD processor
+    __cpuid(cpuInfo, 0x80000005);
+    int l1DataCacheSize = (cpuInfo[2] >> 24) & 0xFF; // L1 data cache size in KB
+    int l1InstructionCacheSize = (cpuInfo[3] >> 24) & 0xFF; // L1 instruction cache size in KB
+
+    std::cout << "L1 Data Cache Size: " << l1DataCacheSize << " KB" << std::endl;
+    std::cout << "L1 Instruction Cache Size: " << l1InstructionCacheSize << " KB" << std::endl;
+}
+
+/* Use this version for Intel Processors */
 void printCacheDetails(int cacheLevel, int cacheType) {
     int cpuInfo[4];
     int cacheLevelId = 0;
