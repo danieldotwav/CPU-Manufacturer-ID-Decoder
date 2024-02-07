@@ -1,15 +1,20 @@
 #include <iostream>
 #include <intrin.h>
+#include <cstring>
 #include <iomanip>
 using namespace std;
 
 void decodeAndPrintCpuManufacturer();
-void printLeafValues();
+void printDetailedHardwareInfo();
+void printCacheDetails(int cacheLevel, int cachType);
 
 int main(int argc, char* argv[]) {
     decodeAndPrintCpuManufacturer();
-    cout << endl;
-    printLeafValues();
+    printDetailedHardwareInfo();
+
+    // For cache size, more complex handling is required
+    // EAX=4, ECX=0 for cache information. L1 Cache type is 1 (Instruction cache).
+    printCacheDetails(1, 1);
 
 	return 0;
 }
@@ -31,12 +36,48 @@ void decodeAndPrintCpuManufacturer() {
     std::cout << "CPU Manufacturer ID: " << manufacturerId << std::endl;
 }
 
-void printLeafValues() {
-    int b[4] = { 0 };
-    int a;
+void printDetailedHardwareInfo() {
+    int cpuInfo[4] = { 0 };
+    char brand[0x40]; // 64-byte space for the brand string
+    memset(brand, 0, sizeof(brand)); // Clear brand buffer
 
-    for (a = 0; a < 5; a++) {
-        __cpuid(b, a);
-        cout << "Code:" << a << " gives " << setw(8) << hex << setfill('0') << b[0] << ' ' << b[1] << ' ' << b[2] << ' ' << b[3] << endl;
+    // Basic CPUID Information
+    __cpuid(cpuInfo, 0); // Maximum CPUID Input Value and Processor Brand String
+    int maxInputValue = cpuInfo[0];
+    cout << "Maximum CPUID Input Value: " << maxInputValue << endl;
+
+    // Processor Type and Features
+    __cpuid(cpuInfo, 1);
+    cout << "Processor Type: " << ((cpuInfo[0] >> 12) & 0x3) << endl; // This is largely obsolete
+    cout << "Brand Index: " << (cpuInfo[1] & 0xFF) << endl;
+    cout << "AVX Support: " << ((cpuInfo[2] >> 28) & 0x1) << endl;
+    cout << "x87 FPU Support: " << ((cpuInfo[3] >> 0) & 0x1) << endl;
+
+    // Processor Brand String (requires concatenation of results from 0x80000002 to 0x80000004)
+    for (int i = 0; i < 3; i++) {
+        __cpuid(cpuInfo, 0x80000002 + i);
+        memcpy(brand + (i * 16), cpuInfo, sizeof(cpuInfo)); // Copy 16 bytes at a time
     }
+
+    cout << "Processor Brand String: " << brand << endl; // Print the null-terminated brand string
+}
+
+void printCacheDetails(int cacheLevel, int cacheType) {
+    int cpuInfo[4];
+    int cacheLevelId = 0;
+    do {
+        __cpuidex(cpuInfo, 4, cacheLevelId);
+        int level = (cpuInfo[0] >> 5) & 0x7;
+        int type = cpuInfo[0] & 0xF;
+        if (level == cacheLevel && type == cacheType) {
+            int lineSize = (cpuInfo[1] & 0xFFF) + 1;
+            int partitions = ((cpuInfo[1] >> 12) & 0x3FF) + 1;
+            int ways = ((cpuInfo[1] >> 22) & 0x3FF) + 1;
+            int sets = cpuInfo[2] + 1;
+            int cacheSize = ways * partitions * lineSize * sets;
+            std::cout << "L" << cacheLevel << " Cache Size: " << cacheSize << " bytes" << std::endl;
+            break;
+        }
+        cacheLevelId++;
+    } while ((cpuInfo[0] & 0xF) != 0);
 }
